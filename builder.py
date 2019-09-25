@@ -7,6 +7,7 @@ from PIL import Image, ImageFont, ImageDraw
 from math import pi
 import requests
 from io import BytesIO
+from effect import *
 
 DESIGNER_JSON = '../application/config/print_designer.json'
 
@@ -146,7 +147,7 @@ class ImageProcessor(object):
 
     @staticmethod
     def get_path(name: string):
-        return f'../media/tmp/{name}.png'
+        return f'{name}.png'
 
     @staticmethod
     def random_word(length: int):
@@ -173,6 +174,7 @@ class ImageProcessor(object):
 
     def processed(self):
         for k in self.json_data:
+            print(k)
             curr_obj = ImageParam(self.ratio, self.landw_scale, self.landh_scale, **k)
             img_data = curr_obj.calculate_data()
 
@@ -182,17 +184,23 @@ class ImageProcessor(object):
             elif k.get('type') == 'image':  # Merge images
                 path_image = {'name': self.name_path, 'background': self.bg_path, 'logo': self.tmp_path}
                 obj_img = MyImage(path_image[k['kind']]).get()
-                print(k['kind'])
 
                 if k.get('filter'):
-                    self.apply_filters(obj_img, k.get('filter'), img_data)
+                    obj_img = self.apply_filters(obj_img, k.get('filter'), img_data)
 
                 self.canvas = MyImage.add(self.canvas, obj_img, img_data)
 
         self.canvas.save(self.get_path(self.tmp_name))
 
-    def apply_filters(self, obj, filter, this_curr_obj):
-        pass
+    def apply_filters(self, obj, filter, img_data):
+        if filter.get('type') == 'css_hue_rotate':
+            obj = change_hue(obj, filter.get('value'))
+        elif filter.get('type') == 'css_invert':
+            obj = invert_colors(obj)
+        elif filter.get('type') == 'css_saturate':
+            obj = image_tint(obj)
+            obj.convert('RGBA')
+        return obj
 
 
 def main():
