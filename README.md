@@ -7,7 +7,7 @@
 # Run
  `python builder.py <first parameter> <second> <third> <fourth> <fifth>`
  ## in test data
-    `./run.sh`
+ `./run.sh`
 
 # Result
- Image in folder ../media/tmp/
+ Image in folder `../media/tmp/`
