@@ -1,8 +1,12 @@
 # builder_image
 
 # Installation
+## Create virtualenv
 `virtualenv -p python3 venv`
- `source ./venv/bin/activate`
+## Activate environment 
+`source ./venv/bin/activate`
+## Install requirements
+`pip install -r requirements.txt`
 
 # Run
  `python builder.py <first parameter> <second> <third> <fourth> <fifth>`
@@ -10,4 +14,4 @@
  `./run.sh`
 
 # Result
- Image in folder `../media/tmp/`
+ Image in folder `./result/`
