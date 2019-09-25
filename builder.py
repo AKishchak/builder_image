@@ -232,8 +232,7 @@ class MyImage(object):
         Returns:
         Image object for further use
         """
-        if image not in ['RGB', 'RGBA']:
-            raise TypeError('Unsupported source image mode: {}'.format(image))
+        image = image.convert('RGB')
         image.load()
 
         tr, tg, tb = getrgb(tint)
