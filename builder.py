@@ -3,7 +3,6 @@ import random
 import string
 import json
 import base64
-from image_helper import *
 from PIL import Image, ImageFont, ImageDraw
 from math import pi
 import requests
@@ -147,7 +146,7 @@ class ImageProcessor(object):
 
     @staticmethod
     def get_path(name: string):
-        return f'./tmp/{name}.png'
+        return f'../media/tmp/{name}.png'
 
     @staticmethod
     def random_word(length: int):
