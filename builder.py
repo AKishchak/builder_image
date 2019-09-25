@@ -1,170 +1,66 @@
-import sys
-import random
-import string
+from PIL import Image, ImageFont, ImageDraw
+from PIL.ImageColor import getcolor, getrgb
+from PIL.ImageOps import grayscale, invert
+from PIL.ImageChops import multiply
+
+from math import pi
+from io import BytesIO
+
 import json
 import base64
-from PIL import Image, ImageFont, ImageDraw
-from math import pi
 import requests
-from io import BytesIO
-from effect import *
+import string
+import random
 
-DESIGNER_JSON = '../application/config/print_designer.json'
-
-
-class ImageParam(object):
-    def __init__(self, ratio, landw_scale, landh_scale, **kwargs):
-        self.ratio = ratio
-        self.landw_scale = landw_scale
-        self.landh_scale = landh_scale
-        self.kwargs = kwargs
-
-        self.font_size = None
-        self.text = ''
-        self.font = ImageFont.load_default()
-        self.width = None
-        self.height = None
-        self.left = 0
-        self.top = 0
-        self.angle = 0
-        self.origin_x = None
-        self.origin_y = None
-        self.stroke_width = 0
-        self.hi_width = 0
-        self.hi_height = 0
-        self.hi_left = 0
-        self.hi_top = 0
-        self.type = None
-        self.kind = None
-        self.filter = None
-
-        for i in kwargs:
-            setattr(self, i, kwargs[i])
-
-    def calculate_data(self):
-        data = self.kwargs
-        data.update({
-            'font_size': 24 * self.ratio,
-            'width': int(self.hi_width * self.ratio),
-            'height': int(self.hi_height * self.ratio),
-            'left': int(
-                self.hi_left * self.landw_scale * self.ratio),
-            'top': int(self.hi_top * self.landh_scale * self.ratio),
-            'angle': float(self.angle) * 180 / pi,
-            'origin_x': 'center',
-            'origin_y': 'center',
-            'stroke_width': float(self.stroke_width) * self.ratio,
-            'scale_x': 1,
-            'scale_y': 1,
-        })
-        for i in data:
-            setattr(self, i, data[i])
-        return data
-
-
-class MyImage(object):
-    def __init__(self, path):
-        if path[:4] == 'http':
-            response = requests.get(path)
-            self.image = Image.open(BytesIO(response.content))
-        else:
-            self.image = Image.open(path)
-
-    def get(self):
-        return self.image
-
-    @staticmethod
-    def text(canvas, font, prop):
-        size = ImageDraw.Draw(canvas).textsize(prop['text'], font=font)
-
-        background_image = Image.new('RGBA', canvas.size, (255, 255, 255, 0))
-        txt = Image.new('RGBA', size, (255, 255, 255, 0))
-        d = ImageDraw.Draw(txt)
-        d.text((0, 0), prop['text'], 'black', font=font)
-        w = txt.rotate(prop['angle'], expand=1)
-        background_image.paste(w, (prop['left'], prop['top']))
-        canvas = Image.alpha_composite(canvas, background_image)
-
-        return canvas
-
-    @staticmethod
-    def add(canvas, img, prop):
-        img = img.resize((prop['width'], prop['height']))
-
-        mark = img.rotate(prop['angle'], Image.BICUBIC)
-
-        background_image = Image.new('RGBA', canvas.size, (255, 255, 255, 0))
-        background_image.paste(mark, (prop['left'], prop['top']))
-
-        canvas = Image.alpha_composite(canvas, background_image)
-
-        return canvas
-
-    def filter(self):
-        pass
+from sys import argv
 
 
 class ImageProcessor(object):
-    def __init__(self):
+    def __init__(self, params, logo_path, name_path, bg_path, ratio_json):
+        self.params = params
+        self.logo_path = logo_path
+        self.name_path = name_path
+        self.bg_path = bg_path
+        self.ratio_json = ratio_json
 
-        self.tmp_name = self.random_word(6)
-        self.tmp_hue_name = self.random_word(6)
-        self.tmp_hires_name = self.random_word(6)
-
-        self.tmp_path = None
-        self.name_path = None
-        self.bg_path = None
-
-        self.canvas_sizes = None
-        self.json_data = None
-
-        self.font = None
-
-        self.get_argv()
-
-        self.cwidth = self.canvas_sizes['cwidth']
-        self.cheight = self.canvas_sizes['cheight']
-        self.small_w = self.canvas_sizes['small_w']
-        self.small_h = self.canvas_sizes['small_h']
-
-        self.ratio = self.cwidth / self.small_w
+        # Init variables
+        self.tmp_path = ''
+        self.cwidth = 100
+        self.cheight = 100
+        self.small_h = 50
+        self.small_w = 50
         self.landh_scale = 1
         self.landw_scale = 1
+        self.ratio = 1
+        self.font = None
+        self.canvas = None
 
-        self.land_scale()
+    def create_data(self):
+        letters = string.ascii_lowercase
+        rand_str = lambda l: ''.join(random.choice(letters) for i in range(l))
+        self.font = ImageFont.truetype('UbuntuMono-BI.ttf', 24)
 
-        self.open_font()
+        self.tmp_path = f'result/{rand_str(6)}.png'
+        self.cwidth = self.ratio_json['cwidth']
+        self.cheight = self.ratio_json['cheight']
+        self.small_h = self.ratio_json['small_h']
+        self.small_w = self.ratio_json['small_w']
 
-        self.canvas = Image.new('RGBA', (self.cwidth, self.cheight))
-
-        self.processed()
-
-    def land_scale(self):
-        if (self.cwidth / self.cheight) > 1:
+        if self.cwidth / self.cheight > 1:
             self.ratio = self.cheight / self.small_h
             self.landh_scale = self.ratio / (self.cheight / self.small_h)
             self.landw_scale = (self.cwidth / self.small_w) / self.ratio
+        else:
+            self.ratio = self.cwidth / self.small_w
+            self.landh_scale = 1
+            self.landw_scale = 1
 
-    @staticmethod
-    def get_path(name: string):
-        return f'{name}.png'
-
-    @staticmethod
-    def random_word(length: int):
-        letters = string.ascii_lowercase
-        return ''.join(random.choice(letters) for i in range(length))
-
-    def get_argv(self):
-        self.tmp_path = sys.argv[1:][1]
-        self.name_path = sys.argv[1:][2]
-        self.bg_path = sys.argv[1:][3]
-
-        self.canvas_sizes = json.loads(sys.argv[1:][4])
-        self.json_data = json.loads(base64.b64decode(sys.argv[1:][0]))
+        # create canvas
+        self.canvas = Image.new('RGBA', (self.cwidth, self.cheight))
 
     def open_font(self):
         try:
-            with open(DESIGNER_JSON, 'r') as f:
+            with open('../application/config/print_designer.json', 'r') as f:
                 data = json.load(f)
                 for i in data:
                     if data[i].get('web_font'):
@@ -173,38 +69,287 @@ class ImageProcessor(object):
             pass
 
     def processed(self):
-        for k in self.json_data:
-            print(k)
-            curr_obj = ImageParam(self.ratio, self.landw_scale, self.landh_scale, **k)
-            img_data = curr_obj.calculate_data()
+        for data in self.params:
+            obj_prop = ImageProp(self.ratio, self.landw_scale, self.landh_scale, **data)
+            if obj_prop.type == 'text':
+                self.open_font()
+                self.canvas = MyImage.text(self.canvas, self.font, obj_prop)
 
-            if k.get('type') == 'text':  # Drawing text
-                self.canvas = MyImage.text(self.canvas, self.font, img_data)
+            elif obj_prop.type == 'image':
+                path_image = {'name': self.name_path, 'background': self.bg_path, 'logo': self.logo_path}
+                obj_img = MyImage(path_image[obj_prop.kind]).get()
 
-            elif k.get('type') == 'image':  # Merge images
-                path_image = {'name': self.name_path, 'background': self.bg_path, 'logo': self.tmp_path}
-                obj_img = MyImage(path_image[k['kind']]).get()
+                if obj_prop.filter:
+                    obj_img = MyImage.apply_filters(obj_img, obj_prop.filter, obj_prop)
 
-                if k.get('filter'):
-                    obj_img = self.apply_filters(obj_img, k.get('filter'), img_data)
+                self.canvas = MyImage.add(self.canvas, obj_img, obj_prop)
+        self.canvas.save(self.tmp_path)
 
-                self.canvas = MyImage.add(self.canvas, obj_img, img_data)
 
-        self.canvas.save(self.get_path(self.tmp_name))
+class MyImage(object):
+    def __init__(self, path):
+        path = BytesIO(requests.get(path).content) if path[:4] == 'http' else path
+        self.image = Image.open(path)
 
-    def apply_filters(self, obj, filter, img_data):
+    def get(self):
+        return self.image
+
+    @staticmethod
+    def text(canvas, font, prop):
+        size = ImageDraw.Draw(canvas).textsize(prop.text, font=font)  # Size area with text
+
+        background_image = Image.new('RGBA', canvas.size, (255, 255, 255, 0))  # Temporary canvas
+        txt = Image.new('RGBA', size, (255, 255, 255, 0))  # new transparent picture
+        d = ImageDraw.Draw(txt)
+        d.text((0, 0), prop.text, 'black', font=font)  # Draw text
+        w = txt.rotate(prop.angle, expand=1)  # Turn the text
+        background_image.paste(w, (prop.left, prop.top))  # Paste the text into a temporary picture
+        canvas = Image.alpha_composite(canvas, background_image)  # Paste text into canvas
+
+        return canvas
+
+    @staticmethod
+    def add(canvas, img, prop):
+        img = img.resize((prop.width, prop.height))  # Scale image
+
+        mark = img.rotate(prop.angle, Image.BICUBIC)  # Turn the image
+
+        background_image = Image.new('RGBA', canvas.size, (255, 255, 255, 0))  # Temporary canvas
+        background_image.paste(mark, (prop.left, prop.top))  # Paste image into a temporary canvas
+        # background_image.show()
+
+        canvas = Image.alpha_composite(canvas, background_image)  # Paste into canvas
+
+        return canvas
+
+    @staticmethod
+    def apply_filters(img, filter, prop):
         if filter.get('type') == 'css_hue_rotate':
-            obj = change_hue(obj, filter.get('value'))
+            img = MyImage.change_hue(img, int(filter.get('value')))
         elif filter.get('type') == 'css_invert':
-            obj = invert_colors(obj)
+            img = MyImage.invert_colors(img)
         elif filter.get('type') == 'css_saturate':
-            obj = image_tint(obj)
-            obj.convert('RGBA')
-        return obj
+            img = MyImage.image_tint(img)
+            img.convert('RGBA')
+        # else:
+        #     img = MyImage.image_multiply(img)
+        return img
+
+    @staticmethod
+    def blend_images(background_image: str, foreground_image: str, alpha: float) -> Image:
+        """
+        Function to blend two images
+
+        Parameters:
+        background_image (str): Path to the image that will act as the background
+        foreground_image (str): Path to the image that will act as the foreground
+        alpha(float) : Alpha value, can be used to distinguish area of intersection between two images
+
+        Returns:
+        Image object for further use
+        """
+        try:
+            background = Image.open(background_image)
+            foreground = Image.open(foreground_image)
+            merged_image = Image.blend(background, foreground, alpha)
+            return merged_image
+        except Exception as exc:
+            print("Exception in overlay_with_alpha")
+            print(exc)
+            return None
+
+    @staticmethod
+    def overlay_images(background_image: str, foreground_image: str) -> Image:
+        """
+        Function to merge two images without alpha
+
+        Parameters:
+        background_image (str): Path to the image that will act as the background
+        foreground_image (str): Path to the image that will act as the foreground
+
+        Returns:
+        Image object for further use
+        """
+        try:
+            background = Image.open(background_image)
+            foreground = Image.open(foreground_image)
+            background.paste(foreground, (0, 0), foreground)
+            return background
+        except Exception as exc:
+            print("Exception in overlay_without_alpha")
+            print(exc)
+            return None
+
+    @staticmethod
+    def change_hue(image, amount: float) -> Image:
+        """
+        Function to change hue of an image by given amount
+
+        Parameters:
+        image (str): Path to the image
+        amount (float): Hue amount
+
+        Returns:
+        Image object for further use
+        """
+        # try:
+        # Open and ensure it is RGB, not palettised
+        img = image.convert('RGBA')
+
+        # Save the Alpha channel to re-apply at the end
+        a = img.getchannel('A')
+
+        # Convert to HSV and save the V (Lightness) channel
+        v = img.convert('RGB').convert('HSV').getchannel('V')
+
+        # Synthesize new Hue and Saturation channels using values from colour picker
+        # colpickerH, colpickerS = 10, 255
+        new_h = Image.new('L', img.size, (amount,))
+        new_s = Image.new('L', img.size, (255,))
+
+        # Recombine original V channel plus 2 synthetic ones to a 3 channel HSV image
+        hsv = Image.merge('HSV', (new_h, new_s, v))
+
+        # Add original Alpha layer back in
+        r, g, b = hsv.convert('RGB').split()
+        rgba = Image.merge('RGBA', (r, g, b, a))
+
+        return rgba
+        # except Exception as exc:
+        #     print("Exception in change_hue")
+        #     print(exc)
+        #     return None
+
+    @staticmethod
+    def image_tint(image, tint='#ffffff'):
+        """
+        Function to merge two images without alpha
+
+        Parameters:
+        image (str): Path to the image
+        tint (str): Hex code for the tint
+
+        Returns:
+        Image object for further use
+        """
+        if image not in ['RGB', 'RGBA']:
+            raise TypeError('Unsupported source image mode: {}'.format(image))
+        image.load()
+
+        tr, tg, tb = getrgb(tint)
+        tl = getcolor(tint, "L")  # tint color's overall luminosity
+        tl = 1 if not tl else tl  # avoid division by zero
+        tl = float(tl)  # compute luminosity preserving tint factors
+        sr, sg, sb = map(lambda tv: tv / tl, (tr, tg, tb))  # per component
+        # adjustments
+        # create look-up tables to map luminosity to adjusted tint
+        # (using floating-point math only to compute table)
+        luts = (
+                tuple(map(lambda lr: int(lr * sr + 0.5), range(256))) +
+                tuple(map(lambda lg: int(lg * sg + 0.5), range(256))) +
+                tuple(map(lambda lb: int(lb * sb + 0.5), range(256)))
+        )
+        lum = grayscale(image)  # 8-bit luminosity version of whole image
+        if Image.getmodebands(image.mode) < 4:
+            merge_args = (image.mode, (lum, lum, lum))  # for RGB verion of grayscale
+        else:  # include copy of image image's alpha layer
+            a = Image.new("L", image.size)
+            a.putdata(image.getdata(3))
+            merge_args = (image, (lum, lum, lum, a))  # for RGBA verion of grayscale
+            luts += tuple(range(256))  # for 1:1 mapping of copied alpha values
+
+        return Image.merge(*merge_args).point(luts)
+
+    @staticmethod
+    def invert_colors(image) -> Image:
+        """
+        Function to invert colors of an image
+
+        Parameters:
+        image (str): Path to the image
+
+        Returns:
+        Image object for further use
+        """
+        try:
+            image = image.convert('RGBA')
+            r, g, b, a = image.split()
+            rgb_image = Image.merge('RGB', (r, g, b))
+
+            inverted_image = invert(rgb_image)
+
+            r2, g2, b2 = inverted_image.split()
+
+            final_transparent_image = Image.merge('RGBA', (r2, g2, b2, a))
+            image = final_transparent_image
+            return image
+        except Exception as exc:
+            print("Error in invert_colors")
+            print(exc)
+            return None
+
+    @staticmethod
+    def image_multiply(first_image: str, second_image: str) -> Image:
+        """
+        Function to multiply two images
+
+        Parameters:
+        first_image (str): Path to the first image
+        second_image (str): Path to the second image
+
+        Returns:
+        Image object for further use
+        """
+        try:
+            image_1 = Image.open(first_image)
+            image_2 = Image.open(second_image)
+            multiplied_image = multiply(image_1, image_2)
+            return multiplied_image
+        except Exception as exc:
+            print("Error in image_multiply")
+            print(exc)
+            return None
+
+
+class ImageProp(object):
+    def __init__(self, ratio, landw_scale, landh_scale, **kwargs):
+        self.ratio = ratio
+        self.landw_scale = landw_scale
+        self.landh_scale = landh_scale
+        self.kwargs = kwargs
+
+        # init variables
+        self.hi_width = 100
+        self.hi_height = 100
+        self.hi_left = 0
+        self.hi_top = 0
+        self.stroke_width = 0
+        self.type = None
+        self.text = ''
+        self.kind = ''
+        self.filter = None
+
+        for i in kwargs:
+            setattr(self, i, kwargs[i])
+
+        self.font_size = 24 * self.ratio
+        self.width = int(self.hi_width * self.ratio)
+        self.height = int(self.hi_height * self.ratio)
+        self.left = int(self.hi_left * self.landw_scale * self.ratio)
+        self.top = int(self.hi_top * self.landh_scale * self.ratio)
+        self.angle = float(self.angle) * 180 / pi
 
 
 def main():
-    obj = ImageProcessor()
+    params = json.loads(base64.b64decode(argv[1]))
+    logo_image_path = argv[2]
+    name_image_path = argv[3]
+    background_image_path = argv[4]
+    ratio_json = json.loads(argv[5])
+
+    processor = ImageProcessor(params, logo_image_path, name_image_path, background_image_path, ratio_json)
+    processor.create_data()
+    processor.processed()
 
 
 if __name__ == '__main__':
