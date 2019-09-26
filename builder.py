@@ -77,6 +77,8 @@ class ImageProcessor(object):
 
             elif obj_prop.type == 'image':
                 path_image = {'name': self.name_path, 'background': self.bg_path, 'logo': self.logo_path}
+                if path_image[obj_prop.kind] == '-':
+                    continue
                 obj_img = MyImage(path_image[obj_prop.kind]).get()
 
                 if obj_prop.filter:
@@ -129,7 +131,7 @@ class MyImage(object):
         elif filter.get('type') == 'css_invert':
             img = MyImage.invert_colors(img)
         elif filter.get('type') == 'css_saturate':
-            img = MyImage.image_tint(img)
+            img = MyImage.image_tint(img, filter.get('tint'))
             img.convert('RGBA')
         # else:
         #     img = MyImage.image_multiply(img)
@@ -351,5 +353,29 @@ def main():
     processor.processed()
 
 
+def test():
+    params = [
+        {"type": "image", "kind": "background", "logo": "template.jpg", "hi_width": 291, "hi_height": 360, "hi_left": 0,
+         "hi_right": 10, "hi_top": 0, "hi_bottom": 10, "angle": 0, "filter": {"type": "css_hue_rotate", "value": "50"}},
+        {"type": "image", "kind": "logo", "logo": "template.jpg", "hi_width": 291, "hi_height": 360, "hi_left": 0,
+         "hi_right": 10, "hi_top": 0, "hi_bottom": 10, "angle": 0, "filter": {"type": "css_invert", "value": "100"}},
+        {"angle": 0, "hi_width": 145, "hi_height": 180, "type": "text", "text": "Testtext", "font": "KrinkesRegular"}
+    ]
+    logo_image_path = 'https://i.ibb.co/Byptx3h/new-logo.png'
+    name_image_path = 'https://i.ibb.co/WnZttMH/star.png'
+    background_image_path = 'https://i.ibb.co/XWB8Rft/template.png'
+    ratio_json = {"cwidth": 1455, "cheight": 1800, "small_w": 291, "small_h": 360}
+
+    str_param = f'{base64.b64encode(json.dumps(params).encode("utf-8")).decode()} {logo_image_path} {name_image_path} {background_image_path} \'{json.dumps(ratio_json)}\''
+    print(str_param)
+
+    processor = ImageProcessor(params, logo_image_path, name_image_path, background_image_path, ratio_json)
+    processor.create_data()
+    processor.processed()
+
+
 if __name__ == '__main__':
-    main()
+    if len(argv) == 1:
+        test()
+    else:
+        main()
