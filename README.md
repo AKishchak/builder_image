@@ -11,7 +11,7 @@
 # Run
  `python builder.py <first parameter> <second> <third> <fourth> <fifth>`
  ## in test data
- `./run.sh`
+ `python builder.py` - without parameters
 
 # Result
  Image in folder `./result/`
