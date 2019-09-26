@@ -83,6 +83,8 @@ class ImageProcessor(object):
 
                 if obj_prop.filter:
                     obj_img = MyImage.apply_filters(obj_img, obj_prop.filter, obj_prop)
+                # else:
+                #     obj_img.show()
 
                 self.canvas = MyImage.add(self.canvas, obj_img, obj_prop)
         self.canvas.save(self.tmp_path)
@@ -92,6 +94,7 @@ class MyImage(object):
     def __init__(self, path):
         path = BytesIO(requests.get(path).content) if path[:4] == 'http' else path
         self.image = Image.open(path)
+        self.image.convert('RGBA')
 
     def get(self):
         return self.image
@@ -234,7 +237,7 @@ class MyImage(object):
         Returns:
         Image object for further use
         """
-        image = image.convert('RGB')
+        image = image.convert('RGBA')
         image.load()
 
         tr, tg, tb = getrgb(tint)
@@ -256,7 +259,7 @@ class MyImage(object):
         else:  # include copy of image image's alpha layer
             a = Image.new("L", image.size)
             a.putdata(image.getdata(3))
-            merge_args = (image, (lum, lum, lum, a))  # for RGBA verion of grayscale
+            merge_args = (image.mode, (lum, lum, lum, a))  # for RGBA verion of grayscale
             luts += tuple(range(256))  # for 1:1 mapping of copied alpha values
 
         return Image.merge(*merge_args).point(luts)
@@ -354,16 +357,19 @@ def main():
 
 
 def test():
+    # css_hue_rotate css_invert css_saturate
     params = [
         {"type": "image", "kind": "background", "logo": "template.jpg", "hi_width": 291, "hi_height": 360, "hi_left": 0,
-         "hi_right": 10, "hi_top": 0, "hi_bottom": 10, "angle": 0, "filter": {"type": "css_hue_rotate", "value": "50"}},
+         "hi_right": 10, "hi_top": 0, "hi_bottom": 10, "angle": 0},
         {"type": "image", "kind": "logo", "logo": "template.jpg", "hi_width": 291, "hi_height": 360, "hi_left": 0,
-         "hi_right": 10, "hi_top": 0, "hi_bottom": 10, "angle": 0, "filter": {"type": "css_invert", "value": "100"}},
-        {"angle": 0, "hi_width": 145, "hi_height": 180, "type": "text", "text": "Testtext", "font": "KrinkesRegular"}
+         "hi_right": 10, "hi_top": 0, "hi_bottom": 10, "angle": 0},
+        {"type": "image", "kind": "name", "logo": "template.jpg", "hi_width": 97, "hi_height": 120, "hi_left": 97,
+         "hi_right": 10, "hi_top": 100, "hi_bottom": 10, "angle": 0, "filter": {"type": "css_saturate", "tint": "green"}},
+        # {"angle": 0, "hi_width": 145, "hi_height": 180, "type": "text", "text": "Testtext", "font": "KrinkesRegular"}
     ]
     logo_image_path = 'https://i.ibb.co/Byptx3h/new-logo.png'
     name_image_path = 'https://i.ibb.co/WnZttMH/star.png'
-    background_image_path = 'https://i.ibb.co/XWB8Rft/template.png'
+    background_image_path = 'https://images.ua.prom.st/1184438987_w640_h640_futbolka-zhenskaya-belaya.jpg'
     ratio_json = {"cwidth": 1455, "cheight": 1800, "small_w": 291, "small_h": 360}
 
     str_param = f'{base64.b64encode(json.dumps(params).encode("utf-8")).decode()} {logo_image_path} {name_image_path} {background_image_path} \'{json.dumps(ratio_json)}\''
